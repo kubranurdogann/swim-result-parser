@@ -49,14 +49,6 @@ python gui.py
 2. Sporcu adını yazıp **Ara**'ya basın (veya Enter)
 3. Tüm yarış ve turlar listelenir
 
-## Desteklenen PDF Formatları
-
-| Format | Örnek Yarışlar |
-|--------|---------------|
-| **Standart** | Antalya, İzmir şampiyonaları |
-| **Gelişim Ligi** | Giresun, Ankara, Konya |
-| **SEM Finali** | Samsun Sporcu Eğitim Merkezleri Türkiye Finali |
-
 ## Proje Yapısı
 
 ```
