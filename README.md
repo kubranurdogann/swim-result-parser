@@ -10,11 +10,11 @@ Türkiye yüzme yarışlarının PDF sonuç dosyalarını otomatik olarak okuyup
 - 🗂️ **Yarış yönetimi** — PDF ekle, adını düzenle, sil; liste alfabetik sırada
 - 📂 **OneDrive/ağ sürücüsü desteği** — PDF klasörü olarak herhangi bir konum seçilebilir
 
-## Ekran Görüntüsü
+## Ekran Görüntüleri
 
 | Yarış Listesi | Sporcu Sorgulama |
 |---|---|
-| Yarışları listeler, alfabetik sıralar | Sporcu adıyla tüm yarış sonuçlarını gösterir |
+| ![Yarış Listesi](screenshots/yaris-listesi.png) | ![Sporcu Sorgulama](screenshots/sporcu-sorgula.png) |
 
 ## Kurulum
 
