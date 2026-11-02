@@ -1,4 +1,30 @@
-pdfs/
-venv/
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*.pyo
+venv/
+.venv/
+env/
+
+# PDF cache
+**/.cache/
+*.cache
+
+# Özel isimler ve ayarlar (kişisel)
+ayarlar.txt
+**/.custom_names.txt
+
+# PyInstaller
+dist/
+build/
+*.spec
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
