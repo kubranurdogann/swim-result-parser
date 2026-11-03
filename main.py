@@ -345,29 +345,55 @@ def parse_gelisim(raw_lines):
 
         # ── RELAY ──
         else:
-            # Kulüp satırı: "Istanbul Çevre Spor Kulübü Istanbul Çevre Spor Kulübü 2:44.67 263"
-            # Kulüp adı iki kez yazılıyor, sonunda süre ve puan var
-            club_m = re.match(
-                r"^([A-ZÇĞİÖŞÜa-zçğıöşü].+?(?:Kulübü|Müdürlüğü|Takımı|Okul\S*))"
-                r".+?(\d+:\d+\.\d+|\d+\.\d+)\s*\d*\s*$",
-                line
-            )
-            if club_m:
-                if relay_club and relay_athletes:
-                    relay_entries.append((relay_club, time_to_seconds(relay_time),
-                                          relay_time, relay_athletes[:]))
-                relay_club     = club_m.group(1).strip()
-                relay_time     = club_m.group(2)
-                relay_athletes = []
-                continue
+            # Kulüp satırı tespiti:
+            # Giresun: "Istanbul Çevre Spor Kulübü Istanbul Çevre Spor Kulübü 2:44.67 263"
+            # Ankara:  "V.A.M.O.S V.A.M.O.S 2:02.19 335"  veya "Orka Swim Team Orka Swim Team 2:07.40 295"
+            # Strateji: satırda süre var + başlangıç harf ile başlıyor + sporcu YB regex yok
+            club_time_m = re.search(r"(\d+:\d+\.\d+|\d+\.\d+)\s*\d*\s*$", line)
+            is_athlete_line = bool(re.search(r"\b\d{2}\b", line))  # YB (13,14,15) içeriyor mu?
 
-            # Relay sporcu satırı: "Nisan Hira, EROL 16 Beste, UMAN 16 0.00 35.74"
-            # Bir satırda 2 sporcu olabilir
-            ath_matches = re.findall(
-                r"([A-ZÇĞİÖŞÜa-zçğıöşü][^,\d]+,\s*[A-ZÇĞİÖŞÜa-zçğıöşü\s]+?)\s+(\d{2})\s+",
-                line
-            )
-            if ath_matches and relay_club:
+            if club_time_m and re.match(r"^[A-ZÇĞİÖŞÜa-zçğıöşü.\-]", line):
+                # Kulüp satırı mı sporcu satırı mı ayırt et:
+                # Sporcu satırında: "Ad SOYAD 13 süre Ad SOYAD 13 süre" — araya YB giriyor
+                # Kulüp satırında: "KulüpAdı KulüpAdı süre" — YB yok veya sadece süre var
+                # Eğer satırda sadece süre rakamları var (YB hariç) → kulüp satırı
+                line_no_time = re.sub(r"\d+:\d+\.\d+|\d+\.\d+", "", line)
+                two_digit_count = len(re.findall(r"\b\d{2}\b", line_no_time))
+                # Kulüp satırında iki haneli rakam olmaz (veya az olur), sporcu satırında YB'ler var
+                if two_digit_count == 0:
+                    relay_time_val = club_time_m.group(1)
+                    # Kulüp adını bul: süre öncesindeki metni al, tekrarlı kısmı temizle
+                    before_time = line[:club_time_m.start()].strip()
+                    # "KulüpAdı KulüpAdı" → ilk yarıyı al (adın iki kez yazıldığı format)
+                    # Tekrarlayan prefiksi bul
+                    words = before_time.split()
+                    half_w = len(words) // 2
+                    first_half_words = words[:half_w] if half_w > 0 else words
+                    candidate = " ".join(first_half_words).strip()
+                    # Eğer candidate çok kısaysa tüm before_time'ı al
+                    club_name = candidate if len(candidate) >= 4 else before_time
+                    if relay_club and relay_athletes:
+                        relay_entries.append((relay_club, time_to_seconds(relay_time),
+                                              relay_time, relay_athletes[:]))
+                    relay_club     = club_name
+                    relay_time     = relay_time_val
+                    relay_athletes = []
+                    continue
+
+            # Relay sporcu satırı — Giresun (virgüllü): "Nisan Hira, EROL 16 Beste, UMAN 16 ..."
+            # Relay sporcu satırı — Ankara (virgülsüz): "Efe AĞABABAOĞLU 13 29.54 Koray GÜNDÜZ 13 30.86"
+            if relay_club:
+                # Önce virgüllü formatı dene (Giresun)
+                ath_matches = re.findall(
+                    r"([A-ZÇĞİÖŞÜa-zçğıöşü][^,\d]+,\s*[A-ZÇĞİÖŞÜa-zçğıöşü\s]+?)\s+(\d{2})\s+",
+                    line
+                )
+                # Virgüllü bulunamadıysa virgülsüz formatı dene (Ankara)
+                if not ath_matches:
+                    ath_matches = re.findall(
+                        r"([A-ZÇĞİÖŞÜa-zçğıöşü][a-zçğıöşü]+(?:\s+[A-ZÇĞİÖŞÜa-zçğıöşü][A-Za-zçğıöşüÇĞİÖŞÜ]+)+)\s+(\d{2})\s+",
+                        line
+                    )
                 for name_r, year_r in ath_matches:
                     name_r = name_r.strip()
                     if len(name_r) >= 4:
