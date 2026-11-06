@@ -148,15 +148,18 @@ def parse_standart(raw_lines):
             gender = gender_map.get(gender_raw, "Unknown")
             rest = event_match.group(3).strip()
 
-            # Round tespiti
+            # Round tespiti — yeni event başladığında önce sıfırla
             if re.search(r"\bPrelim\b", rest, re.I):
                 current_round = "Prelim"
             elif re.search(r"\bFinal\b", rest, re.I):
                 current_round = "Final"
-            elif re.search(r"Sonuçlar", rest, re.I):
-                current_round = "Final"
+            elif re.search(r"Sonuçlar|Finals?", rest, re.I):
+                # "Sonuçlar" = tek tur final, ayrı Final/Prelim yok → boş bırak
+                current_round = ""
+            else:
+                current_round = ""  # yeni event, önceki round sıfırla
 
-            rest = re.sub(r"\b(Prelim|Final\s*[A-D]?|Sonuçlar)\b", "", rest, flags=re.I).strip()
+            rest = re.sub(r"\b(Prelim|Final\s*[A-D]?|Sonuçlar|Finals?)\b", "", rest, flags=re.I).strip()
             # Yaş grubu — İngilizce veya Türkçe
             age_match = re.search(
                 r"(\d+\s*-\s*\d+\s*(?:years|yaş\S*)|\d+\s*(?:years|yaş\S*)|Open|Açık)",
