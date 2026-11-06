@@ -120,13 +120,17 @@ def parse_standart(raw_lines):
                 current_round = ""
             continue
 
-        final_only = re.fullmatch(r"Final\s*([A-D]?)", line, re.I)
+        # "Final A", "FinalA", "FinalB", "Finale" (OCR: C→e hatası) gibi başlıklar
+        final_only = re.fullmatch(r"Final\s*([A-Ee]?)", line, re.I)
         if final_only:
-            letter = final_only.group(1)
+            letter = final_only.group(1).upper()
+            # OCR hatası: "e" aslında "C" (Finale = Final C)
+            if letter == "E":
+                letter = "C"
             current_round = f"Final {letter}" if letter else "Final"
             continue
 
-        if re.fullmatch(r"Prelim", line, re.I):
+        if re.fullmatch(r"Prelim(?:s)?", line, re.I):
             current_round = "Prelim"
             continue
 
