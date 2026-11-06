@@ -30,15 +30,20 @@ def read_pdf_lines(pdf_path):
 
 def detect_format(raw_lines):
     """
-    Standart:  'Event N' ile başlar (Antalya/İzmir)
-    Gelişim:   'Yarış N' + 'ULUSAL GELİŞİM' içerir (Giresun)
+    Standart:  'Event N' veya Türkçe 'Yarış N' + ŞAMPİYONA/MİLLİ TAKIM/SEÇMESİ (Antalya/İzmir)
+    Gelişim:   'Yarış N' + 'ULUSAL GELİŞİM' içerir (Giresun/Ankara/Konya)
     SEM:       'SPORCU EĞİTİM MERKEZLERİ' içerir (Samsun SEM Finali)
     """
     text_head = "\n".join(raw_lines[:60]).upper()
     if "SPORCU EĞİTİM MERKEZLERİ" in text_head or "SEM FİNAL" in text_head or "SEM FINAL" in text_head:
         return "sem"
+    # Gelişim Ligi belirgin anahtar kelimeler
     if "ULUSAL GELİŞİM" in text_head or "GELİŞİM LİGİ" in text_head or "GELİŞİM PROJESİ" in text_head:
         return "gelisim"
+    # Standart format belirgin anahtar kelimeler (Antalya milli takım seçmesi, İzmir şampiyona vb.)
+    if any(k in text_head for k in ["MİLLİ TAKIM", "MILLI TAKIM", "ŞAMPİYONASI", "SAMPIYONASI",
+                                     "SEÇMESİ", "SECMESI", "SPORTİVE KULÜPLER"]):
+        return "standart"
     for line in raw_lines[:80]:
         if re.search(r"^Event\s+\d+", line.strip(), re.I):
             return "standart"
@@ -59,6 +64,13 @@ def time_to_seconds(t):
         return float(t)
     except:
         return 9999
+
+
+def fix_ocr_name(name):
+    """OCR'dan gelen yapışık isimleri düzelt: 'HazalÖZKAN' → 'Hazal ÖZKAN'"""
+    # Küçük harf + büyük harf arasına boşluk ekle: "HazalÖZKAN" → "Hazal ÖZKAN"
+    name = re.sub(r"([a-zçğıöşü])([A-ZÇĞİÖŞÜ])", r"\1 \2", name)
+    return name.strip()
 
 
 def normalize(text):
@@ -91,7 +103,9 @@ def parse_standart(raw_lines):
         if not line:
             continue
 
-        if any(x in line for x in ["Splash Meet Manager","Registered to","TÜRKİYE SPORTİVE","ANTALYA","Points","Show all"]):
+        if any(x in line for x in ["Splash Meet Manager","Registered to","TÜRKİYE SPORTİVE","ANTALYA","Points","Show all",
+                                   "TÜRKİYE REKORLAR","TÜRKIYE REKORLAR","Puanlar:","Pu3r","GÜN SABAH","GÜN ÖĞLEDEN",
+                                   "SEANSI","Sıra YB","YB Zaman","Zaman Derece"]):
             continue
         if line.startswith(("DSQ","SW")) or "(Time" in line:
             continue
@@ -116,22 +130,39 @@ def parse_standart(raw_lines):
             current_round = "Prelim"
             continue
 
-        # Event
-        event_match = re.search(r"Event\s+(\d+)\s*,?\s*(Men|Boys|Women|Girls)?\s*,?\s*(.+)", line, re.I)
+        # Event — İngilizce: "Event 1, Women, 200m Medley"
+        # veya Türkçe: "Yarış 1  Bayanlar, 200m Karışık  Açık"
+        event_match = re.search(
+            r"(?:Event|Yarış)\s+(\d+)\s*[,\s]+\s*(Men|Boys|Women|Girls|Bayanlar|Erkekler|Kızlar|Baylar)?\s*[,\s]*(.+)",
+            line, re.I
+        )
         if event_match:
             event_no = event_match.group(1)
-            gender = (event_match.group(2) or "Unknown").title()
+            gender_raw = (event_match.group(2) or "").strip()
+            gender_map = {"Bayanlar": "Women", "Kızlar": "Girls", "Erkekler": "Men", "Baylar": "Men",
+                          "Women": "Women", "Girls": "Girls", "Men": "Men", "Boys": "Boys"}
+            gender = gender_map.get(gender_raw, "Unknown")
             rest = event_match.group(3).strip()
 
+            # Round tespiti
             if re.search(r"\bPrelim\b", rest, re.I):
                 current_round = "Prelim"
             elif re.search(r"\bFinal\b", rest, re.I):
                 current_round = "Final"
+            elif re.search(r"Sonuçlar", rest, re.I):
+                current_round = "Final"
 
-            rest = re.sub(r"\b(Prelim|Final\s*[A-D]?)\b", "", rest, flags=re.I).strip()
-            age_match = re.search(r"(\d+\s*-\s*\d+\s*years|\d+\s*years|Open)", rest)
-            age_group = age_match.group(1) if age_match else "Unknown"
-            race = re.sub(r"(\d+\s*-\s*\d+\s*years|\d+\s*years|Open)", "", rest).strip(" ,")
+            rest = re.sub(r"\b(Prelim|Final\s*[A-D]?|Sonuçlar)\b", "", rest, flags=re.I).strip()
+            # Yaş grubu — İngilizce veya Türkçe
+            age_match = re.search(
+                r"(\d+\s*-\s*\d+\s*(?:years|yaş\S*)|\d+\s*(?:years|yaş\S*)|Open|Açık)",
+                rest, re.I
+            )
+            age_group = age_match.group(1) if age_match else "Open"
+            race = re.sub(
+                r"\d+\s*-\s*\d+\s*(?:years|yaş\S*)|\d+\s*(?:years|yaş\S*)|Open|Açık",
+                "", rest, flags=re.I
+            ).strip(" ,")
             is_relay = bool(re.search(r"\b\d+\s*x\s*\d+", race, re.I))
 
             current_event = {"event": event_no, "gender": gender, "race": race,
@@ -182,7 +213,8 @@ def parse_standart(raw_lines):
             rank = athlete_match.group(1)
             last_rank = int(rank)
             results.append({"event": current_event.copy(), "rank": rank,
-                             "name": athlete_match.group(2).strip(), "birth_year": athlete_match.group(3),
+                             "name": fix_ocr_name(athlete_match.group(2).strip()),
+                             "birth_year": athlete_match.group(3),
                              "club": athlete_match.group(4).strip(), "time": athlete_match.group(5),
                              "age_group": current_age_group, "round": current_round})
             continue
@@ -191,7 +223,7 @@ def parse_standart(raw_lines):
         no_rank = re.match(r"^([A-ZÇĞİÖŞÜ][A-ZÇĞİÖŞÜa-zçğıöşü\s]+?)\s+(\d{2})\s+(.+?)\s+(\d+:\d+\.\d+|\d+\.\d+)(?:\s|$)", line)
         if no_rank and not current_event.get("is_relay"):
             results.append({"event": current_event.copy(), "rank": str(last_rank + 1),
-                             "name": no_rank.group(1).strip(), "birth_year": no_rank.group(2),
+                             "name": fix_ocr_name(no_rank.group(1).strip()), "birth_year": no_rank.group(2),
                              "club": no_rank.group(3).strip(), "time": no_rank.group(4),
                              "age_group": current_age_group, "round": current_round})
 
