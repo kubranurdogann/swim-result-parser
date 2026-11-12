@@ -2,11 +2,19 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import threading
 import os
+import sys
 import shutil
 import webbrowser
 import urllib.parse
 
 from main import parse_pdf, search_athlete, get_competition_info
+
+
+def _resource_path(relative_path):
+    """PyInstaller ile paketlendiğinde kaynak dosya yolunu döndür."""
+    if hasattr(sys, "_MEIPASS"):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), relative_path)
 
 # ── AÇIK TEMA RENKLERİ ──────────────────────────
 BG      = "#f5f5f7"   # arka plan (açık gri)
@@ -29,13 +37,24 @@ class App(tk.Tk):
         self.minsize(900, 600)
         self.configure(bg=BG)
 
+        # Pencere ikonu
+        try:
+            icon_path = _resource_path("swim_icon.ico")
+            self.iconbitmap(icon_path)
+        except Exception:
+            pass  # ikon yoksa sessizce geç
+
         self.pdf_files   = []
         self.pdf_infos   = []
         self.results     = []
         self.current_pdf = None
         self._loading    = False
 
-        self.config_file = "ayarlar.txt"
+        # Ayar dosyasını %APPDATA%/YuzmeYarisi/ altında sakla (exe ile de çalışır)
+        _app_data = os.environ.get("APPDATA") or os.path.expanduser("~")
+        _app_dir  = os.path.join(_app_data, "YuzmeYarisi")
+        os.makedirs(_app_dir, exist_ok=True)
+        self.config_file = os.path.join(_app_dir, "ayarlar.txt")
         self.pdf_dir     = self._load_pdf_dir()
 
         os.makedirs(self.pdf_dir, exist_ok=True)

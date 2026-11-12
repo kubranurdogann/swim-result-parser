@@ -17,7 +17,7 @@ ayarlar.txt
 # PyInstaller
 dist/
 build/
-*.spec
+# *.spec  — swim_parser.spec repoda tutulur (build talimatı için)
 
 # IDE
 .vscode/
